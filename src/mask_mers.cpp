@@ -1,7 +1,7 @@
     #include <iostream>
     #include <fstream>
     #include <thread>
-    #include "threadpool.hpp"
+    #include <vector>
     #include "command_line_parser.hpp"
 
     using namespace std;
@@ -143,20 +143,22 @@
         infile.close();
 
         //Initialize threads
-        int step_size = ((nr_lines / 2)/nr_cores)*2;
-        ThreadPool threadpool(nr_cores);
-
-        //execute threads
+        std::vector<std::thread> thread_vector;
         string partial_output[nr_cores];
+        int step_size = ((nr_lines / 2)/nr_cores)*2;
+        
+        //execute threads
         for(size_t i = 0; i< nr_cores; i++){
-
             int f_nr_lines = i==nr_cores-1 ? nr_lines-(step_size*i) : step_size;
-            function<void()> f_apply_mask = bind(apply_mask,k_mer_file,step_size*i,f_nr_lines,mask,&(partial_output[i]));
-            threadpool.submit(f_apply_mask);
+            thread_vector.push_back(
+                thread(apply_mask,k_mer_file,step_size*i,f_nr_lines,mask,&(partial_output[i]))
+              );
         }
 
         //wait for threads to finish
-        threadpool.waitFinished();
+        for(auto &t : thread_vector){
+            t.join();
+        }
         
         //write output
         string output("");
