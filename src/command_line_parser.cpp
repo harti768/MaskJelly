@@ -109,25 +109,25 @@
 
     void CommandLineParser::info(){
 
-        cout << "\n" << this->author_info << "\n" << endl;
-        cout << "Required arguments:" << endl;
+        cerr << "\n" << this->author_info << "\n" << endl;
+        cerr << "Required arguments:" << endl;
         for(auto arg : this->arguments){
             if(arg.second.required){
-                cout << "-" << arg.first << ":\t" << arg.second.description << endl;
+                cerr << "-" << arg.first << ":\t" << arg.second.description << endl;
             }
         }
 
-        cout << "Optional arguments:" << endl;
+        cerr << "Optional arguments:" << endl;
         for(auto arg : this->arguments){
             if(!arg.second.required){
-                cout << "-" << arg.first << ":\t" << arg.second.description <<  endl;
+                cerr << "-" << arg.first << ":\t" << arg.second.description <<  endl;
             }
         }
 
         if(!this->flags.empty()){
-            cout << "Flags:" << endl;
+            cerr << "Flags:" << endl;
             for(auto flag : this->flags){
-                cout << "-" << flag.first << ":\t" << flag.second.description << endl;
+                cerr << "-" << flag.first << ":\t" << flag.second.description << endl;
             }
         }
     }

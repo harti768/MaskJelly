@@ -77,8 +77,8 @@
             }
         }
 
-        std::cout << "Used Mask: " << mask << std::endl;
-        std::cout << "Transform " << raw_mer_size << "-mers into " << masked_mer_size << "-mers" << std::endl;
+        std::cerr << "Used Mask: " << mask << std::endl;
+        std::cerr << "Transform " << raw_mer_size << "-mers into " << masked_mer_size << "-mers" << std::endl;
     }
 
     enum Mode {w,r};
@@ -108,7 +108,7 @@
         
         parser.addRequiredArgument('m',"Mask consisting of care (1) and don't care (0) positions. Needs to be saved as file.");
         parser.addRequiredArgument('i', "Input file");
-        parser.addRequiredArgument('o',"Output file");
+        parser.addOptionalArgument('o',"","Output file");
         parser.addOptionalArgument('t',"1","number of threads to be used");
 
         //Parse command line
@@ -121,7 +121,7 @@
         //test files
         checkFile(k_mer_file,r);
         checkFile(mask_file,r);
-        checkFile(output_file,w);
+        if(output_file!="") checkFile(output_file,w);
 
         //read mask
         std::string mask = "";
@@ -139,7 +139,7 @@
         while(std::getline(infile,line)){
             nr_lines++;
         }
-        std::cout << "Processing "<< nr_lines/2 <<" different k-mers" << std::endl;
+        std::cerr << "Processing "<< nr_lines/2 <<" different k-mers" << std::endl;
         infile.close();
 
         //Initialize threads
@@ -166,9 +166,14 @@
             output.append(partial_output[i]);
         }
         
-        std::ofstream outfile(output_file);
-        outfile << output << endl;
-        outfile.close();
+        if(output_file!=""){
+            std::ofstream outfile(output_file);
+            outfile << output << endl;
+            outfile.close();
+        }
+        else{
+            cout << output <<endl;
+        }
 
         return 0;
     }
