@@ -24,7 +24,7 @@
         //variables
         unsigned int abundance = 0;
         unsigned int kmer_id = start_line/2 + 1;
-        int raw_mer_size = mask.size();
+        size_t raw_mer_size = mask.size();
 
         for(int i=0; i<n_lines;i++){
             getline(input_stream, line);
@@ -148,7 +148,7 @@
         int step_size = ((nr_lines / 2)/nr_cores)*2;
         
         //execute threads
-        for(size_t i = 0; i< nr_cores; i++){
+        for(int i = 0; i< nr_cores; i++){
             int f_nr_lines = i==nr_cores-1 ? nr_lines-(step_size*i) : step_size;
             thread_vector.push_back(
                 thread(apply_mask,k_mer_file,step_size*i,f_nr_lines,mask,&(partial_output[i]))
@@ -162,7 +162,7 @@
         
         //write output
         string output("");
-        for(size_t i = 0; i< nr_cores; i++){
+        for(int i = 0; i< nr_cores; i++){
             output.append(partial_output[i]);
         }
         
