@@ -17,4 +17,4 @@ command_line_parser.o: $(SRC)command_line_parser.cpp $(SRC)command_line_parser.h
 	$(CC) $(FLAGS) $(INC) -c $(SRC)command_line_parser.cpp
 
 clean:
-	rm -f mask_mers.o command_line_parser.o maskJelly
+	rm -f mask_mers.o command_line_parser.o maskjelly

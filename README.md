@@ -3,8 +3,8 @@
 A lightweight tool for adding spaced seeds to a list of k-mers produced by Jellyfish or similar tools.
 To install `maskjelly',
 ```sh
-git clone https://github.com/harti768/MaskJelly.git;
-cd maskJelly/build; make
+git clone https://github.com/harti768/MaskJelly.git
+cd MaskJelly/build; make
 ```
 
 ## Requirements
