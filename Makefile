@@ -3,7 +3,7 @@ CC = g++
 FLAGS = -Wall -g -pthread
 
 #Source folder
-SRC = $(realpath $(CURDIR))/../src/
+SRC = $(realpath $(CURDIR))/src/
 
 all: maskjelly
 
