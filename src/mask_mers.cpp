@@ -6,7 +6,13 @@
 
     using namespace std;
 
-    void apply_mask(string file, int start_line, int n_lines, string mask, string* output){
+    struct deleteHelper{
+        unsigned int kmers = 0;
+        unsigned int abundance = 0;
+        
+    };
+
+    void apply_mask(string file, int start_line, int n_lines, int limit, string mask, string* output, deleteHelper* dHelper){
 
         //validate
         if(start_line%2 != 0 || n_lines%2!=0){
@@ -32,6 +38,16 @@
             if(line[0] == '>') {
                  //Read abundance
                 abundance = std::stoi(line.substr(1));
+
+                //Ignore k-mer if abundance higher than limit
+                if(abundance>limit){
+                    dHelper->kmers++;
+                    dHelper->abundance += abundance;
+
+                    getline(input_stream, line);
+                    i++;
+                    continue;
+                }
             }
             else{
                 if(line.size() != raw_mer_size){
@@ -109,7 +125,8 @@
         parser.addRequiredArgument('m',"Mask consisting of care (1) and don't care (0) positions. Needs to be saved as file.");
         parser.addRequiredArgument('i', "Input file");
         parser.addOptionalArgument('o',"","Output file");
-        parser.addOptionalArgument('t',"1","number of threads to be used");
+        parser.addOptionalArgument('t',"1","Number of threads to be used");
+        parser.addOptionalArgument('l',"1000000","Limit highest abundance of k-mers. Higher values will be neglected");
 
         //Parse command line
         parser.parse(argc,argv);
@@ -117,6 +134,7 @@
         string k_mer_file = parser.getArgument('i');
         string output_file = parser.getArgument('o');
         int nr_cores = stoi(parser.getArgument('t'));
+        int limit = stoi(parser.getArgument('l'));
 
         //test files
         checkFile(k_mer_file,r);
@@ -145,13 +163,15 @@
         //Initialize threads
         std::vector<std::thread> thread_vector;
         string partial_output[nr_cores];
+        deleteHelper dHelpers[nr_cores];
         int step_size = ((nr_lines / 2)/nr_cores)*2;
         
         //execute threads
         for(int i = 0; i< nr_cores; i++){
             int f_nr_lines = i==nr_cores-1 ? nr_lines-(step_size*i) : step_size;
+            deleteHelper dHelper;
             thread_vector.push_back(
-                thread(apply_mask,k_mer_file,step_size*i,f_nr_lines,mask,&(partial_output[i]))
+                thread(apply_mask,k_mer_file,step_size*i,f_nr_lines,limit,mask,&(partial_output[i]),&(dHelpers[i]))
               );
         }
 
@@ -159,6 +179,17 @@
         for(auto &t : thread_vector){
             t.join();
         }
+        
+        //check how many k-mers were deleted
+        unsigned int d_kmers = 0;
+        unsigned int d_abundance = 0;
+        for(auto& dHelper : dHelpers){
+            d_kmers += dHelper.kmers;
+            d_abundance += dHelper.abundance;
+        }
+
+        cerr << d_kmers << " different k-mers were deleted due to having an abundance higher than " << limit
+        << ". Total abundance of deleted k-mers: " << d_abundance << endl;
         
         //write output
         string output("");
