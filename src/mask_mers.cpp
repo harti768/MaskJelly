@@ -16,7 +16,7 @@
     bool print_names = false;
 
 
-    void apply_mask(string file, int start_line, int n_lines, int limit, string mask, string* output, deleteHelper* dHelper){
+    void apply_mask(string file, unsigned long long int start_line, unsigned long long int n_lines, unsigned int limit, string mask, string* output, deleteHelper* dHelper){
 
         //validate
         if(start_line%2 != 0 || n_lines%2!=0){
@@ -27,16 +27,16 @@
         //reach start line
         ifstream input_stream(file);
         std::string line;
-        for(int i=0; i<start_line;i++){
+        for(unsigned long long int i=0; i<start_line;i++){
             getline(input_stream, line);
         }
 
         //variables
         unsigned int abundance = 0;
-        unsigned int kmer_id = start_line/2 + 1;
+        unsigned long long int kmer_id = start_line/2 + 1;
         size_t raw_mer_size = mask.size();
 
-        for(int i=0; i<n_lines;i++){
+        for(unsigned long long int i=0; i<n_lines;i++){
             getline(input_stream, line);
 
             if(line[0] == '>') {
@@ -163,7 +163,7 @@
         std::ifstream infile(k_mer_file);
 
         //get number of lines in file
-        int nr_lines = 0;
+        unsigned long long int nr_lines = 0;
         while(std::getline(infile,line)){
             nr_lines++;
         }
@@ -174,11 +174,11 @@
         std::vector<std::thread> thread_vector;
         string partial_output[nr_cores];
         deleteHelper dHelpers[nr_cores];
-        int step_size = ((nr_lines / 2)/nr_cores)*2;
+        unsigned long long int step_size = ((nr_lines / 2)/nr_cores)*2;
         
         //execute threads
         for(int i = 0; i< nr_cores; i++){
-            int f_nr_lines = i==nr_cores-1 ? nr_lines-(step_size*i) : step_size;
+            unsigned long long int f_nr_lines = i==nr_cores-1 ? nr_lines-(step_size*i) : step_size;
             deleteHelper dHelper;
             thread_vector.push_back(
                 thread(apply_mask,k_mer_file,step_size*i,f_nr_lines,limit,mask,&(partial_output[i]),&(dHelpers[i]))
@@ -192,7 +192,7 @@
         
         //check how many k-mers were deleted
         unsigned int d_kmers = 0;
-        unsigned int d_abundance = 0;
+        unsigned long long int d_abundance = 0;
         for(auto& dHelper : dHelpers){
             d_kmers += dHelper.kmers;
             d_abundance += dHelper.abundance;
