@@ -5,12 +5,16 @@
     #include "command_line_parser.hpp"
 
     using namespace std;
-
+    
     struct deleteHelper{
         unsigned int kmers = 0;
         unsigned int abundance = 0;
         
     };
+
+    //global variables
+    bool print_names = false;
+
 
     void apply_mask(string file, int start_line, int n_lines, int limit, string mask, string* output, deleteHelper* dHelper){
 
@@ -65,8 +69,12 @@
 
                 //Write masked read to new file *abundance times
                 for(unsigned int i = 1; i<= abundance; i++){
-                    (*output).append(">K-mer "+ to_string(kmer_id) + " Abundance:" + 
-                    to_string(abundance)+ " Copy:" + to_string(i) + "\n");
+                    if(print_names){
+                        (*output).append(">K:"+ to_string(kmer_id) + " A:" + 
+                        to_string(i)+ "/" + to_string(abundance) + "\n");
+                    } else{
+                        (*output).append(">\n");
+                    }
                     (*output).append(masked_line +"\n");
                 }
                 kmer_id++;
@@ -99,7 +107,7 @@
 
     enum Mode {w,r};
 
-    void checkFile(string path,Mode mode){
+    void checkFile(string path,Mode mode){  
 
         if(mode==r){
             std::ifstream stream(path);
@@ -122,11 +130,12 @@
         CommandLineParser parser;
         parser.addAuthorInformation("MaskJelly,  author: Hartmut Haentze \nMaskJelly applies a mask of 'care' and 'dont care' positions to a set of k-mers read by Jellyfish");
         
-        parser.addRequiredArgument('m',"Mask consisting of care (1) and don't care (0) positions. Needs to be saved as file.");
+        parser.addRequiredArgument('m',"Mask consisting of care (1) and don't care (0) positions. Needs to be saved as file");
         parser.addRequiredArgument('i', "Input file");
         parser.addOptionalArgument('o',"","Output file");
         parser.addOptionalArgument('t',"1","Number of threads to be used");
         parser.addOptionalArgument('l',"1000000","Limit highest abundance of k-mers. Higher values will be neglected");
+        parser.addFlagArgument('n',"Print names/ids of k-mers in output file. Increases file size");
 
         //Parse command line
         parser.parse(argc,argv);
@@ -135,6 +144,7 @@
         string output_file = parser.getArgument('o');
         int nr_cores = stoi(parser.getArgument('t'));
         int limit = stoi(parser.getArgument('l'));
+        print_names = parser.getFlag('n');
 
         //test files
         checkFile(k_mer_file,r);
