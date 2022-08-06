@@ -2,6 +2,7 @@
     #include <fstream>
     #include <thread>
     #include <vector>
+    #include <mutex>
     #include "command_line_parser.hpp"
 
     using namespace std;
@@ -14,74 +15,9 @@
 
     //global variables
     bool print_names = false;
-
-
-    void apply_mask(string file, unsigned long long int start_line, unsigned long long int n_lines, unsigned int limit, string mask, string* output, deleteHelper* dHelper){
-
-        //validate
-        if(start_line%2 != 0 || n_lines%2!=0){
-            throw runtime_error("Thread cannot read odd number of lines ("
-            +to_string(n_lines)+")or start at odd position ("+to_string(start_line)+")");
-        }
-
-        //reach start line
-        ifstream input_stream(file);
-        std::string line;
-        for(unsigned long long int i=0; i<start_line;i++){
-            getline(input_stream, line);
-        }
-
-        //variables
-        unsigned int abundance = 0;
-        unsigned long long int kmer_id = start_line/2 + 1;
-        size_t raw_mer_size = mask.size();
-
-        for(unsigned long long int i=0; i<n_lines;i++){
-            getline(input_stream, line);
-
-            if(line[0] == '>') {
-                 //Read abundance
-                abundance = std::stoi(line.substr(1));
-
-                //Ignore k-mer if abundance higher than limit
-                if(abundance>limit){
-                    dHelper->kmers++;
-                    dHelper->abundance += abundance;
-
-                    getline(input_stream, line);
-                    i++;
-                    continue;
-                }
-            }
-            else{
-                if(line.size() != raw_mer_size){
-                    throw std::runtime_error("Malformed read, length: " + std::to_string(line.size())
-                    + ". Expected length: " + std::to_string(raw_mer_size));
-                }
-
-                //Apply mask to read
-                string masked_line("");
-                for(unsigned int i = 0; i<raw_mer_size;i++){
-                    if(mask[i]=='1'){
-                        masked_line.push_back(line[i]);
-                    }
-                }
-
-                //Write masked read to new file *abundance times
-                for(unsigned int i = 1; i<= abundance; i++){
-                    if(print_names){
-                        (*output).append(">K:"+ to_string(kmer_id) + " A:" + 
-                        to_string(i)+ "/" + to_string(abundance) + "\n");
-                    } else{
-                        (*output).append(">\n");
-                    }
-                    (*output).append(masked_line +"\n");
-                }
-                kmer_id++;
-            }
-        }
-        input_stream.close();
-    }
+    bool write_cout = true;
+    mutex output_mutex;
+    ofstream outfile;
 
     void checkMask(string mask){
         
@@ -124,6 +60,89 @@
         }       
     }
 
+    void writeFile(string output){
+        {
+            lock_guard<mutex> lock_output(output_mutex);
+            if(write_cout)  cout << output;
+            else    outfile << output;   
+        }
+    }
+
+    void apply_mask(string file, unsigned long long int start_line, unsigned long long int n_lines, unsigned int limit, string mask, deleteHelper* dHelper){
+
+        //validate
+        if(start_line%2 != 0 || n_lines%2!=0){
+            throw runtime_error("Thread cannot read odd number of lines ("
+            +to_string(n_lines)+")or start at odd position ("+to_string(start_line)+")");
+        }
+
+        //reach start line
+        ifstream input_stream(file);
+        std::string line;
+        for(unsigned long long int i=0; i<start_line;i++){
+            getline(input_stream, line);
+        }
+
+        //variables
+        unsigned int abundance = 0;
+        unsigned long long int kmer_id = start_line/2 + 1;
+        size_t raw_mer_size = mask.size();
+        string output("");
+
+        for(unsigned long long int i=0; i<n_lines;i++){
+            getline(input_stream, line);
+
+            if(line[0] == '>') {
+                 //Read abundance
+                abundance = std::stoi(line.substr(1));
+
+                //Ignore k-mer if abundance higher than limit
+                if(abundance>limit){
+                    dHelper->kmers++;
+                    dHelper->abundance += abundance;
+
+                    getline(input_stream, line);
+                    i++;
+                    continue;
+                }
+            }
+            else{
+                if(line.size() != raw_mer_size){
+                    throw std::runtime_error("Malformed read, length: " + std::to_string(line.size())
+                    + ". Expected length: " + std::to_string(raw_mer_size));
+                }
+
+                //Apply mask to read
+                string masked_line("");
+                for(unsigned int i = 0; i<raw_mer_size;i++){
+                    if(mask[i]=='1'){
+                        masked_line.push_back(line[i]);
+                    }
+                }
+
+                //Write masked read to new file *abundance times
+                for(unsigned int i = 1; i<= abundance; i++){
+                    if(print_names){
+                        output.append(">K:"+ to_string(kmer_id) + " A:" + 
+                        to_string(i)+ "/" + to_string(abundance) + "\n");
+                    } else{
+                        output.append(">\n");
+                    }
+                    output.append(masked_line +"\n");
+                }
+                kmer_id++;
+            }
+
+            //Find stepsize with best trade-of for multi threading
+            if(i%1000000==0){
+                writeFile(output);
+                output.clear();
+            }
+        }
+        writeFile(output);
+        input_stream.close();
+    }
+
     int main(int argc, char* argv[])
     {
         //Initialise command line parser
@@ -149,7 +168,11 @@
         //test files
         checkFile(k_mer_file,r);
         checkFile(mask_file,r);
-        if(output_file!="") checkFile(output_file,w);
+        if(output_file!=""){
+            checkFile(output_file,w);
+            outfile = ofstream(output_file);
+            write_cout = false;
+        }
 
         //read mask
         std::string mask = "";
@@ -172,7 +195,6 @@
 
         //Initialize threads
         std::vector<std::thread> thread_vector;
-        string partial_output[nr_cores];
         deleteHelper dHelpers[nr_cores];
         unsigned long long int step_size = ((nr_lines / 2)/nr_cores)*2;
         
@@ -181,7 +203,7 @@
             unsigned long long int f_nr_lines = i==nr_cores-1 ? nr_lines-(step_size*i) : step_size;
             deleteHelper dHelper;
             thread_vector.push_back(
-                thread(apply_mask,k_mer_file,step_size*i,f_nr_lines,limit,mask,&(partial_output[i]),&(dHelpers[i]))
+                thread(apply_mask,k_mer_file,step_size*i,f_nr_lines,limit,mask,&(dHelpers[i]))
               );
         }
 
@@ -199,22 +221,7 @@
         }
 
         cerr << d_kmers << " different k-mers were deleted due to having an abundance higher than " << limit
-        << ". Total abundance of deleted k-mers: " << d_abundance << endl;
-        
-        //write output
-        string output("");
-        for(int i = 0; i< nr_cores; i++){
-            output.append(partial_output[i]);
-        }
-        
-        if(output_file!=""){
-            std::ofstream outfile(output_file);
-            outfile << output << endl;
-            outfile.close();
-        }
-        else{
-            cout << output <<endl;
-        }
+        << ". Total abundance of deleted k-mers: " << d_abundance << endl;    
 
         return 0;
     }
