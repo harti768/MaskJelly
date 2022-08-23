@@ -110,7 +110,7 @@
                         dHelper->abundance += abundance;
 
                         readLine(input_stream,&line);
-                        i++;
+                        i+=2;
                         continue;
                     }
                 }
