@@ -17,6 +17,7 @@
         bool print_names = false;
         bool read_cin = true;
         bool write_cout = true;
+        bool is_fasta = false;
         mutex output_mutex;
         ofstream outfile;
 
@@ -78,6 +79,63 @@
             }
         }
 
+        
+        void apply_mask_fasta(string file, unsigned long long int start_line, unsigned long long int n_lines, string mask, deleteHelper* dHelper){
+
+            //validate
+            if(start_line%2 != 0 || n_lines%2!=0){
+                throw runtime_error("Thread cannot read odd number of lines ("
+                +to_string(n_lines)+")or start at odd position ("+to_string(start_line)+")");
+            }
+
+            //reach start line
+            ifstream input_stream(file);
+            std::string line;
+            for(unsigned long long int i=0; i<start_line;i++){
+                readLine(input_stream,&line);
+            }
+
+            size_t raw_mer_size = mask.size();
+            string output("");
+            unsigned long long int i=0;
+            while(readLine(input_stream,&line) && i < n_lines){
+                if(line[0] == '>') {
+                    i++;
+                    continue;
+                }
+                else{
+                    if(line.size() < raw_mer_size){
+                        //throw std::runtime_error("Malformed read, length: " + std::to_string(line.size())
+                        //+ ". Expected length higher than: " + std::to_string(raw_mer_size));
+                        //cerr << "Read discdarded due to short length" << endl;
+                        dHelper->kmers++;
+                        i++;
+                        continue;
+                    }
+
+                    //Apply mask to read
+                    //TODO: Filter for N's
+                    for(unsigned int j = 0; j<= line.size()-raw_mer_size; j++){
+                        output.append(">\n");
+                        for(unsigned int pos = 0; pos<raw_mer_size; pos++){
+                            if(mask[pos]=='1'){
+                               output.push_back(line[j+pos]);
+                            }
+                        }
+                        output.append("\n");
+                    }
+                }
+
+                //Find stepsize with best trade-of for multi threading
+                if(output.size() >= 1000000){
+                    writeFile(output);
+                    output.clear();
+                }
+                i++;
+            }
+            writeFile(output);
+        }
+
         void apply_mask(string file, unsigned long long int start_line, unsigned long long int n_lines, unsigned int limit, string mask, deleteHelper* dHelper){
 
             //validate
@@ -122,17 +180,17 @@
 
                     //Apply mask to read
                     string masked_line("");
-                    for(unsigned int i = 0; i<raw_mer_size;i++){
-                        if(mask[i]=='1'){
-                            masked_line.push_back(line[i]);
+                    for(unsigned int j = 0; j<raw_mer_size;j++){
+                        if(mask[j]=='1'){
+                            masked_line.push_back(line[j]);
                         }
                     }
 
                     //Write masked read to new file *abundance times
-                    for(unsigned int i = 1; i<= abundance; i++){
+                    for(unsigned int j = 1; j<= abundance; j++){
                         if(print_names){
                             output.append(">K:"+ to_string(kmer_id) + " A:" + 
-                            to_string(i)+ "/" + to_string(abundance) + "\n");
+                            to_string(j)+ "/" + to_string(abundance) + "\n");
                         } else{
                             output.append(">\n");
                         }
@@ -163,6 +221,7 @@
             parser.addOptionalArgument('t',"1","Number of threads to be used");
             parser.addOptionalArgument('l',"1000000","Limit highest abundance of k-mers. Higher values will be neglected");
             parser.addFlagArgument('n',"Print names/ids of k-mers in output file. Increases file size");
+            parser.addFlagArgument('f',"Input is in fasta format");
 
             //Parse command line
             parser.parse(argc,argv);
@@ -172,6 +231,7 @@
             int nr_cores = stoi(parser.getArgument('t'));
             int limit = stoi(parser.getArgument('l'));
             print_names = parser.getFlag('n');
+            is_fasta = parser.getFlag('f');
 
             //test files
             checkFile(mask_file,r);
@@ -222,9 +282,15 @@
             for(int i = 0; i< nr_cores; i++){
                 unsigned long long int f_nr_lines = i==nr_cores-1 ? nr_lines-(step_size*i) : step_size;
                 deleteHelper dHelper;
-                thread_vector.push_back(
-                    thread(apply_mask,input_file,step_size*i,f_nr_lines,limit,mask,&(dHelpers[i]))
-                );
+                if(is_fasta){
+                    thread_vector.push_back(
+                        thread(apply_mask_fasta,input_file,step_size*i,f_nr_lines,mask,&(dHelpers[i]))
+                    );
+                } else {
+                    thread_vector.push_back(
+                        thread(apply_mask,input_file,step_size*i,f_nr_lines,limit,mask,&(dHelpers[i]))
+                    );
+                }
             }
 
             //wait for threads to finish
@@ -233,15 +299,17 @@
             }
             
             //check how many k-mers were deleted
-            unsigned int d_kmers = 0;
-            unsigned long long int d_abundance = 0;
-            for(auto& dHelper : dHelpers){
-                d_kmers += dHelper.kmers;
-                d_abundance += dHelper.abundance;
-            }
+            if(true){
+                unsigned int d_kmers = 0;
+                unsigned long long int d_abundance = 0;
+                for(auto& dHelper : dHelpers){
+                    d_kmers += dHelper.kmers;
+                    d_abundance += dHelper.abundance;
+                }
 
-            cerr << d_kmers << " different k-mers were deleted due to having an abundance higher than " << limit
-            << ". Total abundance of deleted k-mers: " << d_abundance << endl;    
+                cerr << d_kmers << " different k-mers were deleted due to having an abundance higher than " << limit
+                << ". Total abundance of deleted k-mers: " << d_abundance << endl;  
+            }
 
             return 0;
         }
