@@ -1,7 +1,7 @@
 # MaskJelly
 
-A lightweight tool for adding spaced seeds to a list of k-mers produced by Jellyfish or similar tools.
-To install `maskjelly',
+A lightweight tool for counting spaced seed k-mers in combination with Jellyfish.
+To install `maskjelly`,
 ```sh
 git clone https://github.com/hhaentze/MaskJelly.git
 cd MaskJelly/build; make
@@ -10,10 +10,13 @@ cd MaskJelly/build; make
 ## Requirements
 
 MaskJelly by itself does not require any other libraries.
-For the creation of an input file, [Jellyfish](https://github.com/gmarcais/Jellyfish) is required.
+For the creation of a compressed k-mer-count file, [Jellyfish](https://github.com/gmarcais/Jellyfish) is recommended.
+
 
 ## Input Files
-The list of k-mers needs to be in .fasta format, where every odd line specifies the abundacy of the k-mer in the following line. For example:
+MaskJelly can mask the k-mers either directly from a fasta file (recommended) or, if only .jf files are given, by using the output of `jellyfish dump`.
+
+For the second case the list of k-mers needs to be in .fasta format, where every odd line specifies the abundacy of the k-mer in the following line. For example:
 ```sh
 >10
 AAAAAAAAAAA
@@ -21,36 +24,31 @@ AAAAAAAAAAA
 ACTGTGGTGTG
 ```
 
-The spaced seed must be specified in a separate file and needs to consist of 1 (care) and 0 (don't care) positions.
+The mask / spaced seed must be specified in a separate file and needs to consist of 1 (care) and 0 (don't care) positions.
 
-### Prepare Data
-
-* Create a list of k-mers with Jellfish:
-
-        jellyfish count -m 31 -s 100M -C -o kmers.jf reads.fa
-        jellyfish dump reads.fa > kmers.fa
-* Create a mask:
 
         echo "1101101101101101011011011011011" > mask.txt
 
 
 ## MaskJelly Examples
 
-* Apply mask to list
+* Apply mask to a fasta file and create jellyfish file
 
-        maskjelly -i kmers.fa -m mask.txt > masked_kmers.fa
+        maskjelly -i <reads.fa> -m <mask.txt> -f | jellyfish count -m 21 -s 100M -C /dev/stdin
 
-* Specifiy output file
+* Specifiy output file (not recommended, as file can get quite large)
 
-        maskjelly -i kmers.fa -m mask.txt -o masked_kmers.fa
+        maskjelly -i <reads.fa> -m <mask.txt> -o masked_kmers.fa
 
-* Specify number of threads
+* Apply mask to a jellyfish file
 
-        maskjelly -i kmers.fa -m mask.txt -o masked_kmers.fa -t 4
+        jellyfish dump <kmers.jf> | maskjelly -m <mask.txt> | jellyfish count -m 21 -s 100M -C /dev/std
 
-* Full pipeline
 
-        jellyfish count -m 31 -s 100M -C -o kmers.jf reads.fa
-        jellyfish dump reads.fa > kmers.fa
-        maskjelly -i kmers.fa -m mask.txt -t 4 > masked_kmers.fa
-        jellyfish count -m 21 -s 100M -C -o masked_kmers.jf masked_kmers.fa
+## Arguments
+* -m :    Mask consisting of care (1) and don't care (0) positions. Needs to be saved as file. (mandatory)
+* -i :    Input file
+* -l :    Limit highest abundance of k-mers. Higher values will not be put out. (Only works for output of 'jellyfish dump')
+* -o :    Output file
+* -t :    Number of threads
+* -f :    (flag) Input is fasta file
