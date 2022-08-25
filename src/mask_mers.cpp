@@ -13,7 +13,6 @@
         };
 
         //global variables
-        bool print_names = false;
         bool read_cin = true;
         bool write_cout = true;
         bool is_fasta = false;
@@ -123,12 +122,11 @@
             }
             writeFile(output);
         }
-        void mask_kmers(ifstream &input_stream, unsigned long long int start_line, unsigned long long int n_lines, unsigned int limit, string mask, deleteHelper* dHelper)
+        void mask_kmers(ifstream &input_stream, unsigned long long int n_lines, unsigned int limit, string mask, deleteHelper* dHelper)
         {
             //variables
             string line;
             unsigned int abundance = 0;
-            unsigned long long int kmer_id = start_line/2 + 1;
             string output("");
             unsigned long long int i=0;
             while(readLine(input_stream,&line) && i < n_lines){
@@ -162,15 +160,8 @@
 
                     //Write masked read to new file *abundance times
                     for(unsigned int j = 1; j<= abundance; j++){
-                        if(print_names){
-                            output.append(">K:"+ to_string(kmer_id) + " A:" + 
-                            to_string(j)+ "/" + to_string(abundance) + "\n");
-                        } else{
-                            output.append(">\n");
-                        }
-                        output.append(masked_line +"\n");
+                        output.append(">\n" + masked_line +"\n");
                     }
-                    kmer_id++;
                 }
 
                 //Find stepsize with best trade-of for multi threading
@@ -201,7 +192,7 @@
             if(is_fasta){
                 mask_fasta(input_stream,n_lines,mask,dHelper);
             } else {
-                mask_kmers(input_stream,start_line,n_lines,limit,mask,dHelper);
+                mask_kmers(input_stream,n_lines,limit,mask,dHelper);
             }
         }
 
@@ -216,7 +207,6 @@
             parser.addOptionalArgument('o',"","Output file");
             parser.addOptionalArgument('t',"1","Number of threads to be used");
             parser.addOptionalArgument('l',"1000000","Limit highest abundance of k-mers. Higher values will be neglected");
-            parser.addFlagArgument('n',"Print names/ids of k-mers in output file. Increases file size");
             parser.addFlagArgument('f',"Input is in fasta format");
 
             //Parse command line
@@ -226,7 +216,6 @@
             string output_file = parser.getArgument('o');
             int nr_cores = stoi(parser.getArgument('t'));
             int limit = stoi(parser.getArgument('l'));
-            print_names = parser.getFlag('n');
             is_fasta = parser.getFlag('f');
 
             //test files
