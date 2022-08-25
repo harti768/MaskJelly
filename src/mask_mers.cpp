@@ -179,7 +179,7 @@
             //validate
             if(start_line%2 != 0 || n_lines%2!=0){
                 throw runtime_error("Thread cannot read odd number of lines ("
-                +to_string(n_lines)+")or start at odd position ("+to_string(start_line)+")");
+                +to_string(n_lines)+") or started at odd position ("+to_string(start_line)+")");
             }
 
             //reach start line
@@ -247,7 +247,11 @@
                     while(readLine(infile, &line)){
                         nr_lines++;
                     }
-                    std::cerr << "Processing "<< nr_lines/2 <<" different k-mers" << std::endl;
+
+                    if(is_fasta) 
+                        std::cerr << "Processing "<< nr_lines/2 <<" reads" << std::endl;
+                    else
+                        std::cerr << "Processing "<< nr_lines/2 <<" different k-mers" << std::endl;
                     infile.close();
 
                 } else {
@@ -276,17 +280,22 @@
                 t.join();
             }
             
-            //check how many k-mers were deleted
-            if(true){
-                unsigned int d_kmers = 0;
-                unsigned long long int d_abundance = 0;
-                for(auto& dHelper : dHelpers){
-                    d_kmers += dHelper.elements;
-                    d_abundance += dHelper.abundance;
-                }
-
-                cerr << d_kmers << " different k-mers were deleted due to having an abundance higher than " << limit
-                << ". Total abundance of deleted k-mers: " << d_abundance << endl;  
+            //check how many k-mers/reads were deleted  
+            unsigned int d_elements = 0;
+            unsigned long long int d_abundance = 0;
+            for(auto& dHelper : dHelpers){
+                d_elements += dHelper.elements;
+                d_abundance += dHelper.abundance;
             }
+
+            if(d_elements != 0){
+                if(is_fasta){
+                cerr << d_elements << " reads were excluded, due to beeing shorter than the used mask." << endl;
+                } else {
+                cerr << d_elements << " different k-mers were deleted due to having an abundance higher than " << limit
+                << ". Total abundance of deleted k-mers: " << d_abundance << endl;
+                }
+            }                  
+
             return 0;
         }
