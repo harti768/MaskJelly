@@ -8,9 +8,8 @@
         using namespace std;
         
         struct deleteHelper{
-            unsigned int kmers = 0;
+            unsigned int elements = 0;
             unsigned int abundance = 0;
-            
         };
 
         //global variables
@@ -79,23 +78,15 @@
             }
         }
 
-        
-        void apply_mask_fasta(string file, unsigned long long int start_line, unsigned long long int n_lines, string mask, deleteHelper* dHelper){
+        bool output_threshold(unsigned int size){
+            if(size >= 1000000) return true;
+            else  return false;
+        }
 
-            //validate
-            if(start_line%2 != 0 || n_lines%2!=0){
-                throw runtime_error("Thread cannot read odd number of lines ("
-                +to_string(n_lines)+")or start at odd position ("+to_string(start_line)+")");
-            }
+        void mask_fasta(ifstream &input_stream, unsigned long long int n_lines, string mask, deleteHelper* dHelper)
+        {
 
-            //reach start line
-            ifstream input_stream(file);
-            std::string line;
-            for(unsigned long long int i=0; i<start_line;i++){
-                readLine(input_stream,&line);
-            }
-
-            size_t raw_mer_size = mask.size();
+            string line;
             string output("");
             unsigned long long int i=0;
             while(readLine(input_stream,&line) && i < n_lines){
@@ -104,20 +95,17 @@
                     continue;
                 }
                 else{
-                    if(line.size() < raw_mer_size){
-                        //throw std::runtime_error("Malformed read, length: " + std::to_string(line.size())
-                        //+ ". Expected length higher than: " + std::to_string(raw_mer_size));
-                        //cerr << "Read discdarded due to short length" << endl;
-                        dHelper->kmers++;
+                    if(line.size() < mask.size()){
+                        dHelper->elements++;
                         i++;
                         continue;
                     }
 
                     //Apply mask to read
                     //TODO: Filter for N's
-                    for(unsigned int j = 0; j<= line.size()-raw_mer_size; j++){
+                    for(unsigned int j = 0; j<= line.size()-mask.size(); j++){
                         output.append(">\n");
-                        for(unsigned int pos = 0; pos<raw_mer_size; pos++){
+                        for(unsigned int pos = 0; pos<mask.size(); pos++){
                             if(mask[pos]=='1'){
                                output.push_back(line[j+pos]);
                             }
@@ -127,7 +115,7 @@
                 }
 
                 //Find stepsize with best trade-of for multi threading
-                if(output.size() >= 1000000){
+                if(output_threshold(output.size())){
                     writeFile(output);
                     output.clear();
                 }
@@ -135,26 +123,12 @@
             }
             writeFile(output);
         }
-
-        void apply_mask(string file, unsigned long long int start_line, unsigned long long int n_lines, unsigned int limit, string mask, deleteHelper* dHelper){
-
-            //validate
-            if(start_line%2 != 0 || n_lines%2!=0){
-                throw runtime_error("Thread cannot read odd number of lines ("
-                +to_string(n_lines)+")or start at odd position ("+to_string(start_line)+")");
-            }
-
-            //reach start line
-            ifstream input_stream(file);
-            std::string line;
-            for(unsigned long long int i=0; i<start_line;i++){
-                readLine(input_stream,&line);
-            }
-
+        void mask_kmers(ifstream &input_stream, unsigned long long int start_line, unsigned long long int n_lines, unsigned int limit, string mask, deleteHelper* dHelper)
+        {
             //variables
+            string line;
             unsigned int abundance = 0;
             unsigned long long int kmer_id = start_line/2 + 1;
-            size_t raw_mer_size = mask.size();
             string output("");
             unsigned long long int i=0;
             while(readLine(input_stream,&line) && i < n_lines){
@@ -164,7 +138,7 @@
 
                     //Ignore k-mer if abundance higher than limit
                     if(abundance>limit){
-                        dHelper->kmers++;
+                        dHelper->elements++;
                         dHelper->abundance += abundance;
 
                         readLine(input_stream,&line);
@@ -173,14 +147,14 @@
                     }
                 }
                 else{
-                    if(line.size() != raw_mer_size){
+                    if(line.size() != mask.size()){
                         throw std::runtime_error("Malformed read, length: " + std::to_string(line.size())
-                        + ". Expected length: " + std::to_string(raw_mer_size));
+                        + ". Expected length: " + std::to_string(mask.size()));
                     }
 
                     //Apply mask to read
                     string masked_line("");
-                    for(unsigned int j = 0; j<raw_mer_size;j++){
+                    for(unsigned int j = 0; j<mask.size();j++){
                         if(mask[j]=='1'){
                             masked_line.push_back(line[j]);
                         }
@@ -200,13 +174,35 @@
                 }
 
                 //Find stepsize with best trade-of for multi threading
-                if(i%1000000==0){
+                if(output_threshold(output.size())){
                     writeFile(output);
                     output.clear();
                 }
                 i++;
             }
             writeFile(output);
+        }
+
+        void prepare_thread(string file, unsigned long long int start_line, unsigned long long int n_lines, unsigned int limit, string mask, deleteHelper* dHelper){
+
+            //validate
+            if(start_line%2 != 0 || n_lines%2!=0){
+                throw runtime_error("Thread cannot read odd number of lines ("
+                +to_string(n_lines)+")or start at odd position ("+to_string(start_line)+")");
+            }
+
+            //reach start line
+            ifstream input_stream(file);
+            std::string line;
+            for(unsigned long long int i=0; i<start_line;i++){
+                readLine(input_stream,&line);
+            }
+
+            if(is_fasta){
+                mask_fasta(input_stream,n_lines,mask,dHelper);
+            } else {
+                mask_kmers(input_stream,start_line,n_lines,limit,mask,dHelper);
+            }
         }
 
         int main(int argc, char* argv[])
@@ -281,16 +277,9 @@
             //execute threads
             for(int i = 0; i< nr_cores; i++){
                 unsigned long long int f_nr_lines = i==nr_cores-1 ? nr_lines-(step_size*i) : step_size;
-                deleteHelper dHelper;
-                if(is_fasta){
-                    thread_vector.push_back(
-                        thread(apply_mask_fasta,input_file,step_size*i,f_nr_lines,mask,&(dHelpers[i]))
-                    );
-                } else {
-                    thread_vector.push_back(
-                        thread(apply_mask,input_file,step_size*i,f_nr_lines,limit,mask,&(dHelpers[i]))
-                    );
-                }
+                thread_vector.push_back(
+                    thread(prepare_thread,input_file,step_size*i,f_nr_lines,limit,mask,&(dHelpers[i]))
+                );
             }
 
             //wait for threads to finish
@@ -303,13 +292,12 @@
                 unsigned int d_kmers = 0;
                 unsigned long long int d_abundance = 0;
                 for(auto& dHelper : dHelpers){
-                    d_kmers += dHelper.kmers;
+                    d_kmers += dHelper.elements;
                     d_abundance += dHelper.abundance;
                 }
 
                 cerr << d_kmers << " different k-mers were deleted due to having an abundance higher than " << limit
                 << ". Total abundance of deleted k-mers: " << d_abundance << endl;  
             }
-
             return 0;
         }
