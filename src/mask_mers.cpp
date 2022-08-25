@@ -218,6 +218,10 @@
             int limit = stoi(parser.getArgument('l'));
             is_fasta = parser.getFlag('f');
 
+            if(is_fasta && limit != 1000000){
+                throw runtime_error("The -l argument is only supported for the output of 'jellyfish dump' and not for fasta files.");
+            }
+
             //test files
             checkFile(mask_file,r);
             if(input_file!=""){
